@@ -90,7 +90,7 @@
 PYTHON_COMPAT=( python{2_6,2_7} )
 
 inherit eutils toolchain-funcs versionator multilib python-any-r1
-EXPORT_FUNCTIONS pkg_setup src_unpack src_compile src_test src_install pkg_preinst pkg_postinst pkg_postrm
+EXPORT_FUNCTIONS pkg_setup src_unpack src_compile src_test src_install pkg_preinst pkg_postinst pkg_postrm pkg_config
 
 # Added by Daniel Ostrow <dostrow@gentoo.org>
 # This is an ugly hack to get around an issue with a 32-bit userland on ppc64.
@@ -757,6 +757,19 @@ check_new_config_options() {
 	fi
 }
 
+show_new_config_options() {
+	[[ -e ./Kconfig ]] || die "Unable to find kernel sources"
+	KERNEL_OPTION_VIEWER=${KERNEL_OPTION_VIEWER:=less}
+	if [[ -e ./new_config_options ]] ; then
+		# launch option help
+		$KERNEL_OPTION_VIEWER ./new_config_options
+	fi
+	KERNEL_CONFIG_METHOD=${KERNEL_CONFIG_METHOD:=menuconfig}
+	emake -s $KERNEL_CONFIG_METHOD
+	RET=$?
+	return $RET
+}
+
 make_kernel() {
 	# rebuild new kernel
 	ebegin "Building new kernel"
@@ -1417,4 +1430,16 @@ kernel-2_pkg_postrm() {
 	ewarn "with modified files will remain behind. By design, package managers"
 	ewarn "will not remove these modified files and the directories they reside in."
 	echo
+}
+
+kernel-2_pkg_config() {
+	[[ -e ${ROOT}usr/src/linux-${KV_FULL} ]] || die "Unable to find kernel sources"
+	local PWD=$( pwd )
+	cd "${ROOT}usr/src/linux-${KV_FULL}"
+	set_arch_to_kernel
+	[[ ! -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] && copy_config && check_new_config_options
+	show_new_config_options || die "failed to configure kernel"
+	use autobuild && make_kernel
+	set_arch_to_portage
+	cd "${PWD}"
 }
