@@ -90,7 +90,7 @@
 PYTHON_COMPAT=( python{2_6,2_7} )
 
 inherit eutils toolchain-funcs versionator multilib python-any-r1
-EXPORT_FUNCTIONS pkg_setup src_unpack src_compile src_test src_install pkg_preinst pkg_postinst pkg_postrm pkg_config
+EXPORT_FUNCTIONS pkg_setup src_unpack src_compile src_test src_install pkg_preinst pkg_postinst pkg_prerm pkg_postrm pkg_config
 
 # Added by Daniel Ostrow <dostrow@gentoo.org>
 # This is an ugly hack to get around an issue with a 32-bit userland on ppc64.
@@ -437,6 +437,20 @@ kernel_is_2_6() {
 	kernel_is 2 6 || kernel_is 2 5
 }
 
+get_selected_kernel_atom() {
+	[[ ! -e "${ROOT}usr/src/linux" ]] && return
+	[[ ! -h "${ROOT}usr/src/linux" ]] && return
+	[[ ! -d "${ROOT}usr/src/linux" ]] && return
+	local OLDK_DIR=$( readlink -f "${ROOT}usr/src/linux" )
+	qfile -Cv "$OLDK_DIR" | cut -d' ' -f 1
+}
+
+get_autoremove_condition() {
+	local ATOM=$( get_selected_kernel_atom )
+	[[ -z $ATOM ]] && return
+	echo -n "autoremove? ( !<${ATOM} )"
+}
+
 # @FUNCTION: set_arch_to_kernel
 # @DESCRIPTION:
 # Set the env ARCH to match what the kernel expects.
@@ -468,7 +482,8 @@ if [[ ${ETYPE} == sources ]]; then
 	fi
 
 	if [[ "${CATEGORY}" == "sys-kernel" ]] && [[ "${CHOST}" == "${CTARGET}" ]]; then
-		IUSE="${IUSE} autobuild autoinstall"
+		IUSE="${IUSE} autobuild autoinstall autoremove"
+		DEPEND="${DEPEND} $( get_autoremove_condition )"
 	fi
 
 	# Bug #266157, deblob for libre support
@@ -716,6 +731,44 @@ compile_headers_tweak_config() {
 	return 1
 }
 
+backup_config() {
+	local KDIR=$( realpath "${ROOT}usr/src/linux-${KV_FULL}" )
+	local FN
+	
+	# if we dont have a Makefile, abort now
+	[ -e "$KDIR/Makefile" ] || return 1
+	
+	# if we dont have a .config, just jump out successfully right now
+	if [ ! -e "$KDIR/.config" ]; then
+		ewarn ".config was not found.  This kernel is unconfigured."
+		return 0
+	fi
+	
+	FN="${ROOT}usr/src/kernel-${KV_FULL}.config"
+	if [ -e "$FN" ]; then
+		local BASEFN="$FN"
+		local N=1
+		while [ -e "$FN" ]; do
+			cmp -s "$KDIR/.config" "$FN" && {
+				einfo "Backup config file already exists and contents are identical.  Skipping backup."
+				return 0
+			}
+			N=$(( N + 1 ))
+			FN="$BASEFN.$N"
+		done
+		ewarn "Backup file $FN already exists.  Using numeric suffix."
+	fi
+	
+	# backup config file
+	ebegin "Backing up .config to $FN"
+	mv -n -T "$KDIR/.config" "$FN" || {
+		eend 1 "Failed to backup .config file"
+		return 1
+	}
+	eend 0 "OK"
+	return 0
+}
+
 copy_config() {
 	# find preexisting .config file
 	ebegin "Searching for .config file to copy"
@@ -924,11 +977,13 @@ postinst_sources() {
 	# Don't forget to make directory for sysfs
 	[[ ! -d ${ROOT}sys ]] && kernel_is 2 6 && mkdir ${ROOT}sys
 
-	echo
-	elog "If you are upgrading from a previous kernel, you may be interested"
-	elog "in the following document:"
-	elog "  - General upgrade guide: https://wiki.gentoo.org/wiki/Kernel/Upgrade"
-	echo
+	if ! use autobuild || ! use autoinstall || ! use autoremove ; then
+		echo
+		elog "If you are upgrading from a previous kernel, you may be interested"
+		elog "in the following document:"
+		elog "  - General upgrade guide: https://wiki.gentoo.org/wiki/Kernel/Upgrade"
+		echo
+	fi
 
 	# if K_EXTRAEINFO is set then lets display it now
 	if [[ -n ${K_EXTRAEINFO} ]]; then
@@ -1438,6 +1493,20 @@ kernel-2_pkg_setup() {
 	if [[ ${ETYPE} == sources ]] ; then
 		use autoinstall && ! use symlink && ewarn "it is highly recommended to enable USE=symlink with USE=autoinstall"
 		use autoinstall && ! use autobuild && ewarn "USE=autoinstall also requires USE=autobuild to do anything useful"
+		use autoremove && ( ! use autobuild || ! use autoinstall ) && ewarn "USE=autoremove without USE=\"autobuild autoinstall\" could be dangerous."
+	fi
+}
+
+kernel-2_pkg_prerm() {
+	if use autoremove ; then
+		# this ensures non-autobuild kernels get cleaned up when we are autoremove'ing
+		local PWD=$( pwd )
+		cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
+		backup_config || die "kernel config backup aborted"
+		emake -s clean || die "unable to clean kernel"
+		# "make distclean" removes config files, but we should have backed them up
+		emake -s distclean || die "unable to distclean kernel"
+		cd "$PWD"
 	fi
 }
 
