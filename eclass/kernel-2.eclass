@@ -82,6 +82,15 @@
 # UNIPATCH_STRICTORDER	- if this is set places patches into directories of
 #						  order, so they are applied in the order passed
 
+# KERNEL_CONFIG_METHOD	- The method for configuring the kernel.  Valid options are:
+#						  xconfig, gconfig, menuconfig, nconfig, config
+# KERNEL_OPTION_VIEWER	- The viewer command, which shows new kernel options.
+#						  This command should run an interactive background
+#						  process (pop up an xterm, start a new screen window,
+#						  or even openvt).  The first argument to this command
+#						  is the full path to a file containing a list of new
+#						  kernel options since the previous version which need
+#						  configuring.
 # Changing any other variable in this eclass is not supported; you can request
 # for additional variables to be added by contacting the current maintainer.
 # If you do change them, there is a chance that we will not fix resulting bugs;
