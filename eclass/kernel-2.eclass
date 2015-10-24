@@ -437,6 +437,15 @@ kernel_is_2_6() {
 	kernel_is 2 6 || kernel_is 2 5
 }
 
+# @FUNCTION: set_arch_to_kernel
+# @DESCRIPTION:
+# Set the env ARCH to match what the kernel expects.
+set_arch_to_kernel() { export ARCH=$(tc-arch-kernel); }
+# @FUNCTION: set_arch_to_portage
+# @DESCRIPTION:
+# Set the env ARCH to match what portage expects.
+set_arch_to_portage() { export ARCH=$(tc-arch); }
+
 # Capture the sources type and set DEPENDs
 if [[ ${ETYPE} == sources ]]; then
 	DEPEND="!build? (
@@ -456,6 +465,10 @@ if [[ ${ETYPE} == sources ]]; then
 
 	if [[ -n ${K_KDBUS_AVAILABLE} ]]; then
 		IUSE="${IUSE} kdbus"
+	fi
+
+	if [[ "${CATEGORY}" == "sys-kernel" ]] && [[ "${CHOST}" == "${CTARGET}" ]]; then
+		IUSE="${IUSE} autobuild"
 	fi
 
 	# Bug #266157, deblob for libre support
@@ -701,6 +714,64 @@ compile_headers_tweak_config() {
 
 	# no changes, so lets do nothing
 	return 1
+}
+
+copy_config() {
+	# find preexisting .config file
+	ebegin "Searching for .config file to copy"
+	local OLDK_DIR=$( readlink -f "${ROOT}/usr/src/linux" )
+	if [[ -r "${OLDK_DIR}/.config" ]] ; then
+		KCONFIG="${OLDK_DIR}/.config"
+	else
+		eend 1
+		eerror "Unable to find .config in ${OLDK_DIR}"
+		return 1
+	fi
+	eend 0 "Using $KCONFIG"
+	
+	# copy old kernel config to new kernel
+	if [[ -e "${S}/.config" ]]; then
+		ewarn "New kernel's .config already exists. Refusing to overwrite it with $KCONFIG."
+	else
+		cp $KCONFIG ${S}/.config || die "Unable to copy $KCONFIG as new kernel's .config"
+	fi
+}
+
+check_new_config_options() {
+	# make listnewconfig on kernel
+	local NEWLINES=$( emake -s listnewconfig | tee ${S}/new_config_options | wc -l )
+	
+	# if there are no new config options:
+	if [ $NEWLINES = 0 ]; then
+		ebegin "Automatic oldconfig import in progress"
+		# make oldconfig... on new kernel
+		emake -s oldconfig || {
+			eend 1
+			die "Failed to import oldconfig"
+		}
+		eend 0
+		return 0
+	else # notify user of configuration options & explain manual resolution
+		ewarn "New configuration options detected.  Manual config update required."
+		return 1
+	fi
+}
+
+make_kernel() {
+	# rebuild new kernel
+	ebegin "Building new kernel"
+	( emake all ) || {
+		eend 1
+		die "Failed to build kernel"
+	}
+	eend 0
+}
+
+compile_sources() {
+	set_arch_to_kernel
+	[[ -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] || copy_config
+	check_new_config_options && make_kernel
+	set_arch_to_portage
 }
 
 # install functions
@@ -1287,6 +1358,8 @@ kernel-2_src_compile() {
 		python_setup
 		sh "${T}/${DEBLOB_A}" --force || die "Deblob script failed to run!!!"
 	fi
+
+	[[ ${ETYPE} == sources ]] && use autobuild && compile_sources
 }
 
 # if you leave it to the default src_test, it will run make to
