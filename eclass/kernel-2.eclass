@@ -91,6 +91,11 @@
 #						  is the full path to a file containing a list of new
 #						  kernel options since the previous version which need
 #						  configuring.
+# KERNEL_POST_INSTALL	- A script to run after successfully installing the
+# 						  compiled kernel.  This generally is a script which
+# 						  updates the boot loader (lilo, grub-mkconfig,
+# 						  boot-update, etc.)
+
 # Changing any other variable in this eclass is not supported; you can request
 # for additional variables to be added by contacting the current maintainer.
 # If you do change them, there is a chance that we will not fix resulting bugs;
@@ -985,6 +990,10 @@ postinst_sources() {
 
 	# Don't forget to make directory for sysfs
 	[[ ! -d ${ROOT}sys ]] && kernel_is 2 6 && mkdir ${ROOT}sys
+
+	if [[ ! -n ${KERNEL_POST_INSTALL} ]]; then
+		${KERNEL_POST_INSTALL}
+	fi
 
 	if ! use autobuild || ! use autoinstall || ! use autoremove ; then
 		echo
