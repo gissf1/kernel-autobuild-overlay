@@ -468,7 +468,7 @@ if [[ ${ETYPE} == sources ]]; then
 	fi
 
 	if [[ "${CATEGORY}" == "sys-kernel" ]] && [[ "${CHOST}" == "${CTARGET}" ]]; then
-		IUSE="${IUSE} autobuild"
+		IUSE="${IUSE} autobuild autoinstall"
 	fi
 
 	# Bug #266157, deblob for libre support
@@ -881,6 +881,25 @@ postinst_sources() {
 
 	# if we have USE=symlink, then force K_SYMLINK=1
 	use symlink && K_SYMLINK=1
+
+	if use autoinstall ; then
+		if [[ -e "${ROOT}usr/src/linux-${KV_FULL}/vmlinux" ]] ; then
+			# make install
+			local PWD=$( pwd )
+			cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
+			emake -s modules_install && emake -s install || die "unable to install kernel"
+			emake -s modules_prepare || die "modules_prepare failed"
+			cd "$PWD"
+			einfo "Please run emerge @module-rebuild to update packages with kernel modules."
+		else
+			ewarn "Cannot autoinstall kernel.  Please manually configure and install."
+			ewarn "As an automated tool, you can use emerge --config =${CATEGORY}/${PF}"
+			if [[ $K_SYMLINK -eq 1 ]] ; then
+				K_SYMLINK=0
+				ewarn "Skipping symlink update as well.  After successful config, build, and install, the symlink will also be updated."
+			fi
+		fi
+	fi
 
 	# if we're using a deblobbed kernel, it's not supported
 	[[ $K_DEBLOB_AVAILABLE == 1 ]] && \
@@ -1415,6 +1434,11 @@ kernel-2_pkg_setup() {
 	ABI="${KERNEL_ABI}"
 	[[ ${ETYPE} == headers ]] && setup_headers
 	[[ ${ETYPE} == sources ]] && echo ">>> Preparing to unpack ..."
+	
+	if [[ ${ETYPE} == sources ]] ; then
+		use autoinstall && ! use symlink && ewarn "it is highly recommended to enable USE=symlink with USE=autoinstall"
+		use autoinstall && ! use autobuild && ewarn "USE=autoinstall also requires USE=autobuild to do anything useful"
+	fi
 }
 
 kernel-2_pkg_postrm() {
@@ -1440,6 +1464,8 @@ kernel-2_pkg_config() {
 	[[ ! -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] && copy_config && check_new_config_options
 	show_new_config_options || die "failed to configure kernel"
 	use autobuild && make_kernel
+	# handle make install & symlink
+	postinst_sources
 	set_arch_to_portage
 	cd "${PWD}"
 }
