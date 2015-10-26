@@ -1,0 +1,9 @@
+# Copyright 1999-2015 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+# $Id$
+
+# Keep them sorted
+
+autobuild - Automatically copy old config and compile new kernels
+autoinstall - Automatically install new kernels to system as well
+autoremove - Automatically backup old kernel configs and remove old kernels
