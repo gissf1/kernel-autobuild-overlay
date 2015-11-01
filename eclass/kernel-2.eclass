@@ -951,11 +951,11 @@ postinst_sources() {
 	use symlink && K_SYMLINK=1
 
 	if use autoinstall ; then
-		if [[ -e "${ROOT}usr/src/linux-${KV_FULL}/vmlinux" ]] ; then
+		if use autobuild && [[ -e "${ROOT}usr/src/linux-${KV_FULL}/vmlinux" ]] ; then
 			# make install
 			local PWD=$( pwd )
 			cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
-			emake -s modules_install && emake -s install || die "unable to install kernel"
+			( emake -s modules_install && emake -s install ) || die "unable to install kernel"
 			emake -s modules_prepare || die "modules_prepare failed"
 			cd "$PWD"
 			einfo "Please run emerge @module-rebuild to update packages with kernel modules."
