@@ -962,6 +962,8 @@ postinst_sources() {
 		else
 			ewarn "Cannot autoinstall kernel.  Please manually configure and install."
 			ewarn "As an automated tool, you can use emerge --config =${CATEGORY}/${PF}"
+			ewarn "to configure this kernel.  If you have USE=autobuild autoinstall,"
+			ewarn "this will also build and install the kernel afterwards."
 			if [[ $K_SYMLINK -eq 1 ]] ; then
 				K_SYMLINK=0
 				ewarn "Skipping symlink update as well.  After successful config, build, and install, the symlink will also be updated."
