@@ -754,7 +754,7 @@ backup_config() {
 	
 	# if we dont have a .config, just jump out successfully right now
 	if [ ! -e "$KDIR/.config" ]; then
-		ewarn ".config was not found.  This kernel is unconfigured."
+		ewarn "$KDIR/.config was not found.  This kernel is unconfigured."
 		return 0
 	fi
 	
