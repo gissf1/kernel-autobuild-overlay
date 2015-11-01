@@ -451,6 +451,22 @@ kernel_is_2_6() {
 	kernel_is 2 6 || kernel_is 2 5
 }
 
+is_reinstall() {
+	if [[ -n "$REPLACED_BY_VERSION" ]]; then
+		if [[ "$PVR" = "$REPLACED_BY_VERSION" ]]; then
+			return 0
+		fi
+	fi
+	if [[ -n "$REPLACING_VERSIONS" ]]; then
+		for V in $REPLACING_VERSIONS ; do
+			if [[ "$PVR" = "$V" ]]; then
+				return 0
+			fi
+		done
+	fi
+	return 1
+}
+
 get_selected_kernel_atom() {
 	[[ ! -e "${ROOT}usr/src/linux" ]] && return
 	[[ ! -h "${ROOT}usr/src/linux" ]] && return
@@ -951,7 +967,11 @@ postinst_sources() {
 	use symlink && K_SYMLINK=1
 
 	if use autoinstall ; then
-		if use autobuild && [[ -e "${ROOT}usr/src/linux-${KV_FULL}/vmlinux" ]] ; then
+		local MENTION_CONFIG=0
+		if use autobuild && is_reinstall ; then
+			ewarn "Detected reinstall; Skipping autoinstall."
+			MENTION_CONFIG=1
+		elif use autobuild && [[ -e "${ROOT}usr/src/linux-${KV_FULL}/vmlinux" ]] ; then
 			# make install
 			local PWD=$( pwd )
 			cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
@@ -961,6 +981,9 @@ postinst_sources() {
 			einfo "Please run emerge @module-rebuild to update packages with kernel modules."
 		else
 			ewarn "Cannot autoinstall kernel.  Please manually configure and install."
+			MENTION_CONFIG=1
+		fi
+		if [[ $MENTION_CONFIG -eq 1 ]] ; then
 			ewarn "As an automated tool, you can use emerge --config =${CATEGORY}/${PF}"
 			ewarn "to configure this kernel.  If you have USE=autobuild autoinstall,"
 			ewarn "this will also build and install the kernel afterwards."
@@ -1521,13 +1544,17 @@ kernel-2_pkg_setup() {
 kernel-2_pkg_prerm() {
 	if use autoremove ; then
 		# this ensures non-autobuild kernels get cleaned up when we are autoremove'ing
-		local PWD=$( pwd )
-		cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
-		backup_config || die "kernel config backup aborted"
-		emake -s clean || die "unable to clean kernel"
-		# "make distclean" removes config files, but we should have backed them up
-		emake -s distclean || die "unable to distclean kernel"
-		cd "$PWD"
+		if is_reinstall ; then
+			einfo "Skipping deep cleanup since we are reinstalling"
+		else
+			local PWD=$( pwd )
+			cd "${ROOT}usr/src/linux-${KV_FULL}" || die "unable to change to kernel directory"
+			backup_config || die "kernel config backup aborted"
+			emake -s clean || die "unable to clean kernel"
+			# "make distclean" removes config files, but we should have backed them up
+			emake -s distclean || die "unable to distclean kernel"
+			cd "$PWD"
+		fi
 	fi
 }
 
@@ -1538,6 +1565,13 @@ kernel-2_pkg_postrm() {
 	# If there isn't anything left behind, then don't complain.
 	[[ -e ${ROOT}usr/src/linux-${KV_FULL} ]] || return 0
 	echo
+	if is_reinstall ; then
+		ewarn "Note: Even though you have successfully reinstalled "
+		ewarn "your kernel package, directories in kernel source location: "
+		ewarn "${ROOT}usr/src/linux-${KV_FULL}"
+		ewarn "have not been scrubbed to remove build files."
+		return 0
+	fi
 	ewarn "Note: Even though you have successfully unmerged "
 	ewarn "your kernel package, directories in kernel source location: "
 	ewarn "${ROOT}usr/src/linux-${KV_FULL}"
