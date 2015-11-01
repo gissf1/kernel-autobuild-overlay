@@ -849,8 +849,9 @@ make_kernel() {
 
 compile_sources() {
 	set_arch_to_kernel
-	[[ -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] || copy_config
-	check_new_config_options && make_kernel
+	[[ -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] || (
+		copy_config && check_new_config_options && make_kernel
+	)
 	set_arch_to_portage
 }
 
