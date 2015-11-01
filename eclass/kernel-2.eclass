@@ -1538,6 +1538,7 @@ kernel-2_pkg_setup() {
 		use autoinstall && ! use symlink && ewarn "it is highly recommended to enable USE=symlink with USE=autoinstall"
 		use autoinstall && ! use autobuild && ewarn "USE=autoinstall also requires USE=autobuild to do anything useful"
 		use autoremove && ( ! use autobuild || ! use autoinstall ) && ewarn "USE=autoremove without USE=\"autobuild autoinstall\" could be dangerous."
+		use autoremove && ewarn "USE=autoremove will clean up old build files when upgrading a kernel."
 	fi
 }
 
