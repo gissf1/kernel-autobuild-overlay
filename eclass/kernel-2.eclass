@@ -797,7 +797,7 @@ copy_config() {
 	eend 0 "Using $KCONFIG"
 	
 	# copy old kernel config to new kernel
-	if [[ -e "${S}/.config" ]]; then
+	if [[ -e "${S}/.config" ]] || [[ -e "${ROOT}usr/src/linux-${KV_FULL}/.config" ]] ; then
 		ewarn "New kernel's .config already exists. Refusing to overwrite it with $KCONFIG."
 	else
 		cp $KCONFIG ${S}/.config || die "Unable to copy $KCONFIG as new kernel's .config"
