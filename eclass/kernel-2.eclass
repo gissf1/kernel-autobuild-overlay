@@ -1567,10 +1567,10 @@ kernel-2_pkg_postrm() {
 	[[ -e ${ROOT}usr/src/linux-${KV_FULL} ]] || return 0
 	echo
 	if is_reinstall ; then
-		ewarn "Note: Even though you have successfully reinstalled "
-		ewarn "your kernel package, directories in kernel source location: "
-		ewarn "${ROOT}usr/src/linux-${KV_FULL}"
-		ewarn "have not been scrubbed to remove build files."
+		einfo "Note: Even though you have successfully reinstalled "
+		einfo "your kernel package, directories in kernel source location: "
+		einfo "${ROOT}usr/src/linux-${KV_FULL}"
+		einfo "have not been scrubbed to remove build files."
 		return 0
 	fi
 	ewarn "Note: Even though you have successfully unmerged "
