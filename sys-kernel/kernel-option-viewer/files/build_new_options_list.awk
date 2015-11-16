@@ -1,7 +1,12 @@
 #!/usr/bin/gawk
 # KDIR should be the kernel directory with .config to check
 
-@load "time"
+function sleep(seconds,   CMD,LINE) {
+	CMD="/bin/sleep " + seconds
+	while ((CMD | getline LINE) > 0) {
+	}
+	close(CMD);
+}
 
 function findConfigOption(opt,   m,t) {
 	if (match(opt, /^  HOST(CC|LD)  |^scripts\/kconfig\/conf /, m)) {
